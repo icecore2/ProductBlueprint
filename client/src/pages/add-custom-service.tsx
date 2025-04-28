@@ -1,9 +1,9 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { apiRequest } from '@/lib/queryClient';
@@ -31,7 +31,14 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+
+// Schema for service plans
+const planSchema = z.object({
+  name: z.string().min(1, 'Plan name is required'),
+  price: z.number().positive('Price must be greater than 0'),
+  description: z.string().optional(),
+});
 
 // Schema for creating custom services
 const customServiceSchema = z.object({
@@ -39,6 +46,7 @@ const customServiceSchema = z.object({
   category: z.string().min(1, 'Category is required'),
   averagePrice: z.number().positive('Price must be greater than 0'),
   icon: z.string().min(1, 'Icon is required'),
+  plans: z.array(planSchema).optional(),
 });
 
 type CustomServiceFormValues = z.infer<typeof customServiceSchema>;
@@ -47,6 +55,7 @@ const AddCustomService: React.FC = () => {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [showPlans, setShowPlans] = useState(false);
 
   // Get categories for the dropdown
   const { data: categories = [] } = useQuery({
@@ -79,12 +88,24 @@ const AddCustomService: React.FC = () => {
       category: '',
       averagePrice: 9.99,
       icon: 'Package',
+      plans: [],
     },
+  });
+
+  // Set up the field array for plans
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "plans",
   });
 
   // Handle form submission
   const onSubmit = (data: CustomServiceFormValues) => {
     createServiceMutation.mutate(data);
+  };
+
+  // Handle adding a new plan
+  const addPlan = () => {
+    append({ name: '', price: 9.99, description: '' });
   };
 
   // Get available icons from Lucide - limit to common ones
@@ -219,6 +240,104 @@ const AddCustomService: React.FC = () => {
                   </FormItem>
                 )}
               />
+            </div>
+
+            <div className="border-t pt-5">
+              <div className="flex justify-between items-center">
+                <h3 className="text-base font-medium">Service Plans</h3>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setShowPlans(!showPlans)}
+                >
+                  {showPlans ? 'Hide Plans' : 'Add Plans'}
+                </Button>
+              </div>
+              
+              {showPlans && (
+                <div className="mt-4 space-y-5">
+                  {fields.map((field, index) => (
+                    <div key={field.id} className="border p-4 rounded-md relative">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute top-2 right-2 h-8 w-8 p-0"
+                        onClick={() => remove(index)}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <FormField
+                          control={form.control}
+                          name={`plans.${index}.name`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Plan Name</FormLabel>
+                              <FormControl>
+                                <Input placeholder="e.g. Basic, Premium" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        
+                        <FormField
+                          control={form.control}
+                          name={`plans.${index}.price`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Monthly Price</FormLabel>
+                              <FormControl>
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0.01"
+                                    className="pl-8"
+                                    {...field}
+                                    onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                                    value={field.value}
+                                  />
+                                </div>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      
+                      <FormField
+                        control={form.control}
+                        name={`plans.${index}.description`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Description (Optional)</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Brief description of this plan" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  ))}
+                  
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addPlan}
+                    className="flex items-center gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Plan
+                  </Button>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end space-x-2 pt-2">

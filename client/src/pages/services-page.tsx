@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useLocation, useRoute } from 'wouter';
 import {
@@ -30,24 +29,24 @@ const ServicesPage: React.FC = () => {
   const searchParams = new URLSearchParams(location.split('?')[1] || '');
   const planName = searchParams.get('plan');
   const planPrice = searchParams.get('price') ? parseFloat(searchParams.get('price')!) : null;
-  
+
   const { 
     services: { data: servicesData, isLoading }, 
     addSubscription 
   } = useSubscriptions();
-  
+
   // Use DEFAULT_SERVICES if API call doesn't return data
   const services = servicesData.length > 0 ? servicesData : DEFAULT_SERVICES;
-  
+
   // Find selected service if serviceId is provided
   const selectedService = serviceId ? 
     services.find(service => 'id' in service && service.id.toString() === serviceId) : 
     null;
-  
+
   const handleAddService = (service: any) => {
     navigate(`/services/${service.id}${service.planName ? `?plan=${encodeURIComponent(service.planName)}&price=${service.averagePrice}` : ''}`);
   };
-  
+
   const handleSubmit = (data: SubscriptionFormData) => {
     addSubscription.mutate(data, {
       onSuccess: () => {
@@ -84,12 +83,12 @@ const ServicesPage: React.FC = () => {
     const { bgLight, textDark } = getCategoryColorClass(service.category);
     const iconName = service.icon || getCategoryIcon(service.category);
     const id = 'id' in service ? service.id : 0;
-    
+
     // Get plans for this service or use a default plan
     const servicePlans = DEFAULT_PLANS[service.name] || [
       { id: `${service.name.toLowerCase()}-default`, name: 'Standard', price: service.averagePrice }
     ];
-    
+
     return (
       <Card key={id} className="overflow-hidden border border-gray-100">
         <div className="p-5">
@@ -105,7 +104,7 @@ const ServicesPage: React.FC = () => {
               <p className="text-sm text-gray-500">{service.category}</p>
             </div>
           </div>
-          
+
           {servicePlans.length > 1 && (
             <div className="mb-3">
               <p className="text-xs font-medium text-gray-700 mb-1">Available Plans:</p>
@@ -129,18 +128,27 @@ const ServicesPage: React.FC = () => {
               </div>
             </div>
           )}
-          
+
           <div className="flex justify-between items-center mt-4 pt-3 border-t border-gray-100">
             <div className="text-lg font-medium">
               {formatCurrency(service.averagePrice)}
               <span className="text-sm text-gray-500"> /month</span>
             </div>
-            <Button 
-              size="sm"
-              onClick={() => handleAddService(service)}
-            >
-              Add
-            </Button>
+            <div className="flex space-x-2">
+              <Button 
+                size="sm"
+                variant="outline"
+                onClick={() => navigate(`/edit-service/${service.id}`)}
+              >
+                Edit
+              </Button>
+              <Button 
+                size="sm"
+                onClick={() => handleAddService(service)}
+              >
+                Add
+              </Button>
+            </div>
           </div>
         </div>
       </Card>

@@ -11,6 +11,7 @@ import Notifications from "@/pages/notifications";
 import Settings from "@/pages/settings";
 import Members from "@/pages/members";
 import AppLayout from "@/layout/app-layout";
+import EditService from './pages/edit-service'; // Added import
 
 function Router() {
   return (
@@ -19,6 +20,7 @@ function Router() {
       <Route path="/services" component={ServicesPage} />
       <Route path="/services/:serviceId?" component={ServicesPage} />
       <Route path="/add-custom-service" component={AddCustomService} />
+      <Route path="/edit-service/:serviceId" component={EditService} /> {/* Added route */}
       <Route path="/notifications" component={Notifications} />
       <Route path="/settings" component={Settings} />
       <Route path="/members" component={Members} />
