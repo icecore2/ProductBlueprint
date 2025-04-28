@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, real } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, real, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -41,12 +41,23 @@ export const categories = pgTable("categories", {
   color: text("color").notNull(),
 });
 
+export const servicePlans = pgTable("service_plans", {
+  id: serial("id").primaryKey(),
+  serviceId: integer("service_id").notNull(),
+  name: text("name").notNull(),
+  price: numeric("price", { precision: 10, scale: 2 }).notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+
 export const services = pgTable("services", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
   category: text("category").notNull(),
   averagePrice: real("average_price"),
   icon: text("icon"),
+  plans: text("plans"),  // JSON-encoded array of plans
 });
 
 export const notifications = pgTable("notifications", {
@@ -85,11 +96,19 @@ export const insertCategorySchema = createInsertSchema(categories).pick({
   color: true,
 });
 
+export const insertServicePlanSchema = createInsertSchema(servicePlans).pick({
+  serviceId: true,
+  name: true,
+  price: true,
+  description: true,
+});
+
 export const insertServiceSchema = createInsertSchema(services).pick({
   name: true,
   category: true,
   averagePrice: true,
   icon: true,
+  plans: true,
 });
 
 export const insertNotificationSchema = createInsertSchema(notifications).pick({
@@ -114,6 +133,10 @@ export type User = typeof users.$inferSelect;
 
 export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
 export type Subscription = typeof subscriptions.$inferSelect;
+
+export type InsertServicePlan = z.infer<typeof insertServicePlanSchema>;
+export type ServicePlan = typeof servicePlans.$inferSelect;
+
 
 export type InsertCategory = z.infer<typeof insertCategorySchema>;
 export type Category = typeof categories.$inferSelect;
