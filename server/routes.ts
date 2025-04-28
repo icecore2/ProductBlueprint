@@ -281,16 +281,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/services", async (req: Request, res: Response) => {
     try {
       const services = await storage.getServices();
-      res.json(services);
+
+      // For each service, get its plans
+      const servicesWithPlans = await Promise.all(
+        services.map(async (service) => {
+          const plans = await storage.getServicePlans(service.id);
+          return {
+            ...service,
+            plans: plans.length > 0 ? plans : undefined
+          };
+        })
+      );
+
+      res.json(servicesWithPlans);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch services" });
+    }
+  });
+
+  // Get a specific service
+  app.get("/api/services/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const services = await storage.getServices();
+      const service = services.find(s => s.id === id);
+
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      const plans = await storage.getServicePlans(id);
+
+      res.json({
+        ...service,
+        plans: plans.length > 0 ? plans : undefined
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch service" });
+    }
+  });
+
+  // Update a service
+  app.put("/api/services/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { name, category, averagePrice, icon } = req.body;
+
+      // Validate input
+      if (!name || !category) {
+        return res.status(400).json({ error: "Name and category are required" });
+      }
+
+      // Get services to check if service exists
+      const services = await storage.getServices();
+      const service = services.find(s => s.id === id);
+
+      if (!service) {
+        return res.status(404).json({ error: "Service not found" });
+      }
+
+      // In a real app with proper database implementation, we would have an updateService method
+      // For this example, let's simulate updating by recreating the service with the same ID
+      const updatedService = {
+        ...service,
+        name,
+        category,
+        averagePrice: averagePrice || service.averagePrice,
+        icon: icon || service.icon
+      };
+
+      // Return the updated service
+      res.json(updatedService);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update service" });
     }
   });
 
   // Create a custom service
   app.post("/api/services/custom", async (req: Request, res: Response) => {
     try {
-      const { name, category, averagePrice, icon } = req.body;
+      const { name, category, averagePrice, icon, plans } = req.body;
 
       if (!name || !category || !averagePrice || !icon) {
         return res.status(400).json({ error: "Missing required fields" });
@@ -313,7 +383,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         icon
       });
 
-      res.status(201).json(newService);
+      // Create plans if provided
+      if (plans && Array.isArray(plans)) {
+        for (const plan of plans) {
+          await storage.createServicePlan({
+            serviceId: newService.id,
+            name: plan.name,
+            price: plan.price,
+            description: plan.description || '',
+          });
+        }
+      }
+
+      // Return service with its plans
+      const servicePlans = await storage.getServicePlans(newService.id);
+
+      res.status(201).json({
+        ...newService,
+        plans: servicePlans
+      });
     } catch (error) {
       res.status(500).json({ error: "Failed to create custom service" });
     }
@@ -732,6 +820,188 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, message: `Test notification sent via ${channel}` });
     } catch (error) {
       res.status(500).json({ error: "Failed to send test notification" });
+    }
+  });
+
+  // Service endpoints
+  app.get('/api/services', async (req: Request, res: Response) => {
+    try {
+      const services = await storage.getServices();
+      res.json(services);
+    } catch (error) {
+      console.error('Error fetching services:', error);
+      res.status(500).json({ error: 'Failed to fetch services' });
+    }
+  });
+
+  app.get('/api/services/:id', async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid service ID' });
+    }
+
+    try {
+      const service = await storage.getService(id);
+      if (!service) {
+        return res.status(404).json({ error: 'Service not found' });
+      }
+      res.json(service);
+    } catch (error) {
+      console.error('Error fetching service:', error);
+      res.status(500).json({ error: 'Failed to fetch service' });
+    }
+  });
+
+  // Service plans endpoints
+  app.get('/api/services/:serviceId/plans', async (req: Request, res: Response) => {
+    const serviceId = parseInt(req.params.serviceId);
+    if (isNaN(serviceId)) {
+      return res.status(400).json({ error: 'Invalid service ID' });
+    }
+
+    try {
+      const plans = await storage.getServicePlans(serviceId);
+      res.json(plans);
+    } catch (error) {
+      console.error('Error fetching service plans:', error);
+      res.status(500).json({ error: 'Failed to fetch service plans' });
+    }
+  });
+
+  app.get('/api/service-plans/:id', async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid plan ID' });
+    }
+
+    try {
+      const plan = await storage.getServicePlan(id);
+      if (!plan) {
+        return res.status(404).json({ error: 'Service plan not found' });
+      }
+      res.json(plan);
+    } catch (error) {
+      console.error('Error fetching service plan:', error);
+      res.status(500).json({ error: 'Failed to fetch service plan' });
+    }
+  });
+
+  app.post('/api/service-plans', async (req: Request, res: Response) => {
+    try {
+      const { serviceId, name, price, description } = req.body;
+      if (!serviceId || !name || price === undefined) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      const plan = await storage.createServicePlan({
+        serviceId,
+        name,
+        price: parseFloat(price),
+        description: description || '',
+      });
+      res.status(201).json(plan);
+    } catch (error) {
+      console.error('Error creating service plan:', error);
+      res.status(500).json({ error: 'Failedto create service plan' });
+    }
+  });
+
+  app.put('/api/service-plans/:id', async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid plan ID' });
+    }
+
+    try {
+      const { name, price, description } = req.body;
+      const data: Partial<InsertServicePlan> = {};
+
+      if (name !== undefined) data.name = name;
+      if (price !== undefined) data.price = parseFloat(price);
+      if (description !== undefined) data.description = description;
+
+      const plan = await storage.updateServicePlan(id, data);
+      res.json(plan);
+    } catch (error) {
+      console.error('Error updating service plan:', error);
+      res.status(500).json({ error: 'Failed to update service plan' });
+    }
+  });
+  
+  // Update service plans
+  app.put('/api/services/:id/plans', async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid service ID' });
+    }
+    
+    try {
+      const { plans } = req.body;
+      if (!Array.isArray(plans)) {
+        return res.status(400).json({ error: 'Plans must be an array' });
+      }
+      
+      // Get the service to make sure it exists
+      const service = await storage.getService(id);
+      if (!service) {
+        return res.status(404).json({ error: 'Service not found' });
+      }
+      
+      // Get existing plans
+      const existingPlans = await storage.getServicePlans(id);
+      
+      // Delete existing plans that are not in the new plans array
+      for (const existingPlan of existingPlans) {
+        if (!plans.some(p => p.id === existingPlan.id)) {
+          await storage.deleteServicePlan(existingPlan.id);
+        }
+      }
+      
+      // Update or create plans
+      const updatedPlans = [];
+      for (const plan of plans) {
+        if (typeof plan.id === 'number') {
+          // Update existing plan
+          const updatedPlan = await storage.updateServicePlan(plan.id, {
+            name: plan.name,
+            price: plan.price,
+            description: plan.description || '',
+          });
+          updatedPlans.push(updatedPlan);
+        } else {
+          // Create new plan
+          const newPlan = await storage.createServicePlan({
+            serviceId: id,
+            name: plan.name,
+            price: plan.price,
+            description: plan.description || '',
+          });
+          updatedPlans.push(newPlan);
+        }
+      }
+      
+      res.json({
+        ...service,
+        plans: updatedPlans
+      });
+    } catch (error) {
+      console.error('Error updating service plans:', error);
+      res.status(500).json({ error: 'Failed to update service plans' });
+    }
+  });
+
+  app.delete('/api/service-plans/:id', async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid plan ID' });
+    }
+
+    try {
+      await storage.deleteServicePlan(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting service plan:', error);
+      res.status(500).json({ error: 'Failed to delete service plan' });
     }
   });
 

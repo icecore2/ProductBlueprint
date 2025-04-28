@@ -193,8 +193,123 @@ async function seed() {
           averagePrice: service.averagePrice,
           icon: service.icon,
         };
-        await db.insert(services).values(newService);
+        const [insertedService] = await db.insert(services).values(newService).returning();
         console.log(`Added service: ${service.name}`);
+        
+        // Add default plans for certain services
+        if (service.name === 'Netflix') {
+          const netflixPlans = [
+            {
+              serviceId: insertedService.id,
+              name: "Basic",
+              price: 9.99,
+              description: "Basic plan with limited features",
+              createdAt: new Date()
+            },
+            {
+              serviceId: insertedService.id,
+              name: "Standard",
+              price: 14.99,
+              description: "Standard plan with HD streaming",
+              createdAt: new Date()
+            },
+            {
+              serviceId: insertedService.id,
+              name: "Premium",
+              price: 19.99,
+              description: "Premium plan with 4K streaming",
+              createdAt: new Date()
+            }
+          ];
+          
+          for (const plan of netflixPlans) {
+            await db.insert(servicePlans).values(plan);
+          }
+          console.log(`Added plans for service: ${service.name}`);
+        }
+        else if (service.name === 'Spotify') {
+          const spotifyPlans = [
+            {
+              serviceId: insertedService.id,
+              name: "Individual",
+              price: 9.99,
+              description: "For individual users",
+              createdAt: new Date()
+            },
+            {
+              serviceId: insertedService.id,
+              name: "Duo",
+              price: 12.99,
+              description: "For two users in the same household",
+              createdAt: new Date()
+            },
+            {
+              serviceId: insertedService.id,
+              name: "Family",
+              price: 15.99,
+              description: "For up to 6 users in the same household",
+              createdAt: new Date()
+            }
+          ];
+          
+          for (const plan of spotifyPlans) {
+            await db.insert(servicePlans).values(plan);
+          }
+          console.log(`Added plans for service: ${service.name}`);
+        }
+        else if (service.name === 'Disney+') {
+          const disneyPlans = [
+            {
+              serviceId: insertedService.id,
+              name: "Monthly",
+              price: 7.99,
+              description: "Billed monthly",
+              createdAt: new Date()
+            },
+            {
+              serviceId: insertedService.id,
+              name: "Annual",
+              price: 79.99 / 12,
+              description: "Billed annually (save 16%)",
+              createdAt: new Date()
+            },
+            {
+              serviceId: insertedService.id,
+              name: "Disney Bundle",
+              price: 13.99,
+              description: "Includes Disney+, Hulu, and ESPN+",
+              createdAt: new Date()
+            }
+          ];
+          
+          for (const plan of disneyPlans) {
+            await db.insert(servicePlans).values(plan);
+          }
+          console.log(`Added plans for service: ${service.name}`);
+        }
+        else if (service.name === 'Amazon Prime') {
+          const amazonPlans = [
+            {
+              serviceId: insertedService.id,
+              name: "Monthly",
+              price: 12.99,
+              description: "Billed monthly",
+              createdAt: new Date()
+            },
+            {
+              serviceId: insertedService.id,
+              name: "Annual",
+              price: 119 / 12,
+              description: "Billed annually (save ~17%)",
+              createdAt: new Date()
+            }
+          ];
+          
+          for (const plan of amazonPlans) {
+            await db.insert(servicePlans).values(plan);
+          }
+          console.log(`Added plans for service: ${service.name}`);
+        }
       }
     } else {
       console.log(`Services already exist in the database. Found ${existingServices.length} services.`);

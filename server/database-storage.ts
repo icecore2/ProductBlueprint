@@ -7,6 +7,7 @@ import {
   services,
   notifications,
   apiKeys,
+  servicePlans,
   type User,
   type InsertUser,
   type Subscription,
@@ -18,7 +19,9 @@ import {
   type Notification,
   type InsertNotification,
   type ApiKey,
-  type InsertApiKey
+  type InsertApiKey,
+  type ServicePlan,
+  type InsertServicePlan
 } from "@shared/schema";
 import { IStorage } from "./storage";
 
@@ -153,25 +156,116 @@ export class DatabaseStorage implements IStorage {
   // Service operations
   async getServices(): Promise<Service[]> {
     try {
-      const result = await db.select().from(services);
-      return result;
+      const servicesList = await db.select().from(services);
+      
+      // Parse plans from JSON string if it exists
+      return servicesList.map(service => {
+        if (service.plans) {
+          try {
+            const parsedPlans = JSON.parse(service.plans as string);
+            return {
+              ...service,
+              plans: parsedPlans
+            };
+          } catch (e) {
+            console.error(`Error parsing plans for service ${service.id}:`, e);
+            return service;
+          }
+        }
+        return service;
+      });
     } catch (error) {
-      console.error("Error fetching services:", error);
-      throw error;
+      console.error('Error getting services:', error);
+      return [];
+    }
+  }
+
+  async getService(id: number): Promise<Service | null> {
+    try {
+      const result = await db.select().from(services).where(eq(services.id, id));
+      if (result.length === 0) return null;
+      
+      const service = result[0];
+      
+      // Parse plans from JSON string if it exists
+      if (service.plans) {
+        try {
+          const parsedPlans = JSON.parse(service.plans as string);
+          return {
+            ...service,
+            plans: parsedPlans
+          };
+        } catch (e) {
+          console.error(`Error parsing plans for service ${service.id}:`, e);
+        }
+      }
+      
+      return service;
+    } catch (error) {
+      console.error('Error getting service:', error);
+      return null;
     }
   }
 
   async createService(data: InsertService): Promise<Service> {
     try {
+      // If plans exist, convert to JSON string
+      let plansData = data.plans;
+      if (plansData && typeof plansData !== 'string') {
+        plansData = JSON.stringify(plansData);
+      }
+      
       const [newService] = await db
         .insert(services)
-        .values(data)
+        .values({
+          ...data,
+          plans: plansData as any
+        })
         .returning();
 
       return newService;
     } catch (error) {
       console.error("Error creating service:", error);
       throw error;
+    }
+  }
+  
+  async updateServicePlans(serviceId: number, plans: any[]): Promise<Service | null> {
+    try {
+      const service = await this.getService(serviceId);
+      if (!service) {
+        throw new Error(`Service with ID ${serviceId} not found`);
+      }
+      
+      const plansJson = JSON.stringify(plans);
+      
+      const [updatedService] = await db
+        .update(services)
+        .set({ plans: plansJson })
+        .where(eq(services.id, serviceId))
+        .returning();
+        
+      if (!updatedService) {
+        throw new Error(`Service with ID ${serviceId} not found after update`);
+      }
+      
+      // Parse plans back to object
+      if (updatedService.plans) {
+        try {
+          const parsedPlans = JSON.parse(updatedService.plans as string);
+          return {
+            ...updatedService,
+            plans: parsedPlans
+          };
+        } catch (e) {
+          console.error(`Error parsing plans for service ${updatedService.id}:`, e);
+        }
+      }
+      
+      return updatedService;
+    } catch (error) {
+      console.error(`Error updating plans for service ${serviceId}:`, error);
+      return null;
     }
   }
 
@@ -291,5 +385,75 @@ export class DatabaseStorage implements IStorage {
         reminderDays: settings.reminderDays,
       })
       .where(eq(users.id, userId));
+  }
+
+  // Service plans methods
+  async getServicePlans(serviceId: number): Promise<ServicePlan[]> {
+    try {
+      return await db.select().from(servicePlans).where(eq(servicePlans.serviceId, serviceId));
+    } catch (error) {
+      console.error('Error getting service plans:', error);
+      return [];
+    }
+  }
+
+  async getServicePlan(id: number): Promise<ServicePlan | null> {
+    try {
+      const result = await db.select().from(servicePlans).where(eq(servicePlans.id, id));
+      return result.length > 0 ? result[0] : null;
+    } catch (error) {
+      console.error('Error getting service plan:', error);
+      return null;
+    }
+  }
+
+  async createServicePlan(data: {
+    serviceId: number;
+    name: string;
+    price: number;
+    description: string;
+  }): Promise<ServicePlan> {
+    try {
+      const [newPlan] = await db
+        .insert(servicePlans)
+        .values({
+          ...data,
+          createdAt: new Date()
+        })
+        .returning();
+
+      return newPlan;
+    } catch (error) {
+      console.error("Error creating service plan:", error);
+      throw error;
+    }
+  }
+
+  async updateServicePlan(id: number, data: Partial<InsertServicePlan>): Promise<ServicePlan> {
+    try {
+      const [updatedPlan] = await db
+        .update(servicePlans)
+        .set(data)
+        .where(eq(servicePlans.id, id))
+        .returning();
+
+      if (!updatedPlan) {
+        throw new Error(`Service plan with id ${id} not found`);
+      }
+
+      return updatedPlan;
+    } catch (error) {
+      console.error("Error updating service plan:", error);
+      throw error;
+    }
+  }
+
+  async deleteServicePlan(id: number): Promise<void> {
+    try {
+      await db.delete(servicePlans).where(eq(servicePlans.id, id));
+    } catch (error) {
+      console.error("Error deleting service plan:", error);
+      throw error;
+    }
   }
 }
